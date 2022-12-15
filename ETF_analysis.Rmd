@@ -1,0 +1,229 @@
+---
+title: "ETF rainfall analysis"
+author: "Megan Sears"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: journal
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(stringr)
+library(lubridate)
+library(plotly)
+library(kableExtra)
+library(dataRetrieval)
+
+```
+
+```{r loading data, include = F}
+
+setwd("N:/Research/Kampf/Private/field_data/east_troublesome")
+
+#load rainfall metric functions
+load('N:/Research/Kampf/Private/field_data/bennett/rain_metrics.RData')
+
+#pull in all filenames with composite
+filenames <- list.files(".", pattern="rain_composite", full.names=F)
+
+#read all the csvs
+dataframes <- lapply(filenames, read.csv)
+
+#name all the csv
+names(dataframes) <- substr(filenames, 1, 14)
+
+#extract csvs from list to global env
+lapply(names(dataframes), function(x) assign(x, dataframes[[x]], envir = .GlobalEnv))
+rm(dataframes) #remove dataframes list
+
+stage <- read_csv('N:/Research/Kampf/Private/field_data/east_troublesome/et_stage_sensors.csv')
+
+#separate out stage by site
+hm_stage <- stage %>%
+  filter(site == 'hm')
+
+hum_stage <- stage %>%
+  filter(site == 'hum')
+
+mpm_stage <- stage %>%
+  filter(site == 'mpm')
+
+mub_stage <- stage %>%
+  filter(site == 'mub')
+
+p1_stage <- stage %>%
+  filter(site == 'p1')
+
+p2_stage <- stage %>%
+  filter(site == 'p2')
+
+mum_stage <- stage %>%
+  filter(site == 'mum')
+
+#read in USGS data
+#willow stage
+willow_stage = readNWISuv(siteNumber = '09019850', parameterCd = "00065")
+willow_stage = willow_stage[,3:4]
+colnames(willow_stage)=c('datetime','Stage_ft')
+willow_stage$stage_cm=willow_stage$Stage_ft*30.48
+willow_stage$site='willow'
+
+#willow upper rain
+willow_upper_rain = readNWISuv(siteNumber = 401642106051601, parameterCd = "00045")
+willow_upper_rain = willow_upper_rain[,3:4]
+colnames(willow_upper_rain)=c('datetime','P_in')
+willow_upper_rain$P_mm=willow_upper_rain$P_in*25.4
+willow_upper_rain=filter(willow_upper_rain, P_mm>0) #need to filter here since not a tip bucket
+
+#drowsy rain
+drowsy_rain = readNWISuv(siteNumber = 400912106031201, parameterCd = "00045")
+drowsy_rain = drowsy_rain[,3:4]
+colnames(drowsy_rain)=c('datetime','P_in')
+drowsy_rain$P_mm=drowsy_rain$P_in*25.4
+drowsy_rain=filter(drowsy_rain, P_mm>0) #need to filter here since not a tip bucket
+
+```
+
+## Rainfall
+
+```{r rainfall, eacho = F}
+hm2_rain <- hm2_rain_compo %>%
+  mutate(site = "hm2",
+         datetime = mdy_hm(datetime),
+         precip_mm = 0.254)
+
+lpm_rain <- lpm_rain_compo %>%
+  mutate(site = "lpm",
+         datetime = mdy_hm(datetime),
+         precip_mm = 0.254)
+
+mub_rain <- mub_rain_compo %>%
+    mutate(site = "mub",
+         datetime = mdy_hm(datetime),
+         precip_mm = 0.254)
+
+p1_rain <- p1_rain_compos %>%
+    mutate(site = "p1",
+         datetime = mdy_hm(datetime),
+         precip_mm = 0.254)
+
+rm(hm2_rain_compo, lpm_rain_compo, mub_rain_compo, p1_rain_compos)
+
+```
+
+### Rainfall metrics
+
+```{r rainfall metrics, echo = F}
+#hm2
+hm2_rain <- get_setup(hm2_rain, hm2_rain$datetime)
+hm2_events <- get_events(hm2_rain, hm2_rain$P_mm, hm2_rain$datenumeric,
+                        hm2_rain$end, hm2_rain$start)
+hm2_events <- get_intensities(hm2_events, hm2_events$event, hm2_rain)
+
+hm2_events <- hm2_events %>% mutate(Site = 'hm2') #add site since it was not added 
+
+#lpm
+lpm_rain <- get_setup(lpm_rain, lpm_rain$datetime)
+lpm_events <- get_events(lpm_rain, lpm_rain$P_mm, lpm_rain$datenumeric,
+                        lpm_rain$end, lpm_rain$start)
+lpm_events <- get_intensities(lpm_events, lpm_events$event, lpm_rain)
+
+lpm_events <- lpm_events %>% mutate(Site = 'lpm')
+
+#mub
+mub_rain <- get_setup(mub_rain, mub_rain$datetime)
+mub_events <- get_events(mub_rain, mub_rain$P_mm, mub_rain$datenumeric,
+                        mub_rain$end, mub_rain$start)
+mub_events <- get_intensities(mub_events, mub_events$event, mub_rain)
+
+mub_events <- mub_events %>% mutate(Site = 'mub')
+
+#p1
+p1_rain <- get_setup(p1_rain, p1_rain$datetime)
+p1_events <- get_events(p1_rain, p1_rain$P_mm, p1_rain$datenumeric,
+                        p1_rain$end, p1_rain$start)
+p1_events <- get_intensities(p1_events, p1_events$event, p1_rain)
+
+p1_events <- p1_events %>% mutate(Site = 'p1')
+
+#drowsy
+drowsy_rain <- get_setup(drowsy_rain, drowsy_rain$datetime)
+drowsy_events <- get_events(drowsy_rain, drowsy_rain$P_mm, drowsy_rain$datenumeric,
+                        drowsy_rain$end, drowsy_rain$start)
+drowsy_events <- get_intensities(drowsy_events, drowsy_events$event, drowsy_rain)
+
+drowsy_events <- drowsy_events %>% mutate(Site = 'drowsy')
+
+#willow upper
+willow_upper_rain <- get_setup(willow_upper_rain, willow_upper_rain$datetime)
+willow_upper_events <- get_events(willow_upper_rain, willow_upper_rain$P_mm, willow_upper_rain$datenumeric,
+                        willow_upper_rain$end, willow_upper_rain$start)
+willow_upper_events <- get_intensities(willow_upper_events, willow_upper_events$event, willow_upper_rain)
+
+willow_upper_events <- willow_upper_events %>% mutate(Site = 'willow_upper')
+
+#combine all
+#bind event dfs together
+event_list <- list(hm2_events, lpm_events, mub_events,
+                   p1_events, drowsy_events, willow_upper_events)
+
+#all events for all sites
+events <- bind_rows(event_list)
+
+ggplot(events, aes(x=Site, y=P)) + geom_boxplot() +
+  ggtitle('Precip per event (mm)')
+
+ggplot(events, aes(x=Site, y=duration_hr)) + geom_boxplot() +
+  ggtitle('Event duration (hr)')
+
+ggplot(events, aes(x=Site, y=MI60)) + geom_boxplot() +
+  ggtitle('MI60')
+
+ggplot(events, aes(x=Site, y=MI30)) + geom_boxplot() +
+  ggtitle('MI30')
+
+ggplot(events, aes(x=Site, y=MI15)) + geom_boxplot() +
+  ggtitle('MI15')
+
+ggplot(events, aes(x=Site, y=MI5)) + geom_boxplot()+
+  ggtitle('MI5')
+
+events_summary <- events %>%
+  select(c(Site, P, MI60, MI30, MI15, MI5)) %>%
+  group_by(Site) %>%
+  summarize(Count = n(),
+            Total_P = sum(P, na.rm = TRUE),
+            Max_P = max(P, na.rm = TRUE),
+            Stdev_P = sd(P, na.rm = TRUE),
+            Max_MI60 = max(MI60, na.rm = TRUE),
+            Stdev_MI60 = sd(MI60, na.rm = TRUE),
+            Max_MI30 = max(MI30, na.rm = TRUE),
+            Stdev_MI30 = sd(MI30, na.rm = TRUE),
+            Max_MI15 = max(MI15, na.rm = TRUE),
+            Stdev_MI15 = sd(MI15, na.rm = TRUE),
+            Max_MI5 = max(MI5, na.rm = TRUE),
+            Stdev_MI5 = sd(MI5, na.rm = TRUE)) %>%
+  mutate_if(is.numeric,
+            round,
+            digits = 4)
+
+kable(events_summary) %>%
+  kable_styling()
+
+```
+
+## Stream stage
+
+```{r}
+
+
+
+```
+
