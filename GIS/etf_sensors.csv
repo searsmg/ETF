@@ -1,0 +1,21 @@
+name,site,type,lat,long,elev,burn_status,sensor_model,installed,owner
+Pass 1,p1,stream,40.3452,-106.098462,high,unburned,U-20,6/20/22,ARS
+Pass 1,p1,rain,40.345395,-106.098527,high,unburned,"Hobo, RG3",6/20/22,ARS
+Pass 1,p1,baro,40.3452,-106.098462,high,unburned,U-20,6/20/22,ARS
+Pass 2,p2,stream,40.337208,-106.072687,high,"mixed unburned, burned",U-20,6/20/22,ARS
+HighUnmulch,HUm,stream,40.32426,-106.077859,high,burned,U-20,6/2/22,CSU
+HighUnmulch,HUm,baro,40.32426,-106.077859,high,burned,U-20,6/2/22,CSU
+HighMulch,HM,stream,40.321445,-106.070121,high,burned,U-20,6/2/22,CSU
+HighMulch2,HM2,rain,0,0,high,burned,Hobo RG3,6/20/22,ARS
+MiddleUnmulch,MUm,stream,40.279308,-106.086882,middle,burned,U-20,6/20/22,ARS
+MiddlePartialMulch,MPm,stream,40.268823,-106.082001,middle,burned,U-20,6/20/22,ARS
+MiddlePartialMulch,MPm,rain,40.267845,-106.061954,middle,burned,"Hobo, RG3",7/12/22,RMRS
+MiddleMulch,MM,stream,40.25589193,-106.0773263,middle,burned,Spypoint camera,6/20/22,ARS
+MiddleUnburned,MUb,stream,40.249387,-106.083121,middle,unburned,U-20,6/20/22,ARS
+MiddleUnburned,MUb,baro,40.249387,-106.083121,middle,unburned,U-20,6/20/22,ARS
+MiddleUnburned,MUb,rain,40.249418,-106.083132,middle,unburned,"Hobo, RG3",6/20/22,ARS
+LowerUnmulch1,LUm1,stream,40.204827,-106.035977,low,burned,Spypoint camera,6/20/22,ARS
+LowerPartialMulch,LPm,stream,40.201312,-106.034341,low,burned,Spypoint camera,6/20/22,ARS
+LowerPartialMulch,LPm,rain,40.201413,-106.034351,low,burned,"Hobo, RG3",6/20/22,ARS
+LowerMulch1,LM1,stream,40.192783,-106.028374,low,burned,Spypoint camera,6/20/22,ARS
+LowerMulch2,LM2,stream,40.194417,-106.028657,low,burned,Spypoint camera,6/20/22,ARS
