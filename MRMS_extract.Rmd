@@ -137,11 +137,49 @@ mrms_22 <- list.files(path='/Users/megansears/Documents/MRMS/2022/etf_2022', ful
 
 #remove random columns
 mrms_21 <- mrms_21 %>%
-  dplyr::select(-c(doy, hour))
+  dplyr::select(-c(...1, ID))
 
 mrms_22 <- mrms_22 %>%
   dplyr::select(-c(...1, ID, doy, hour))
 
 write_csv(mrms_21, 'mrms_21.csv')
 write_csv(mrms_22, 'mrms_22.csv')
+
 ```
+
+
+```{r quick mrms check}
+
+ggplot(mrms_21, aes(x = datetime, y = p_mmhr)) +
+  geom_line() +
+  facet_wrap(~name)
+
+ggplot(mrms_22, aes(x = datetime, y = p_mmhr)) +
+  geom_line() +
+  facet_wrap(~name)
+
+
+mrms_21 <- mrms_21 %>%
+  group_by(name) %>% 
+  mutate(year = year(datetime),
+         p_mm_cum = cumsum(p_mmhr))
+
+mrms_22 <- mrms_22 %>%
+  group_by(name) %>% 
+  mutate(year = year(datetime),
+         p_mm_cum = cumsum(p_mmhr))
+
+
+ggplot(mrms_21, aes(x = datetime, y = p_mm_cum)) +
+  geom_line() +
+  facet_wrap(~name)
+
+ggplot(mrms_22, aes(x = datetime, y = p_mm_cum)) +
+  geom_line() +
+  facet_wrap(~name)
+
+
+
+
+```
+
