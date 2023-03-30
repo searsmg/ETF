@@ -33,7 +33,11 @@ library(irr)
 library(plotly)
 library(kableExtra)
 library(tmap)
+library(dataRetrieval)
+
 ```
+
+# Pull in spatial data
 
 ```{r}
 
@@ -58,6 +62,8 @@ et_sheds1 <- as(et_sheds, "Spatial") %>%
 et_sheds <- vect(et_sheds1) %>%
   terra::project(., 'EPSG:26913')
   
+mapview(rain)
+
 # #pull in an example raster
 # r <- rast('/Volumes/CameronPeakFire/MRMS_2022/RadarOnly_QPE_01H_00.00_20220716-000000.grib2') %>%
 #   terra::project(., 'EPSG:26913') 
@@ -89,6 +95,8 @@ et_sheds <- vect(et_sheds1) %>%
 # 
 # write.csv(extract, paste0('extract_', extract$doy[1],'_', extract$hour[1],'.csv'))
 ```
+
+# Extract pixels within catchments
 
 ```{r make it a function}
 
@@ -125,6 +133,8 @@ write.csv(extract, paste0('extract_', extract$doy[1],'_', extract$hour[1],'.csv'
 
 ```
 
+# Compile the CSVs
+
 ```{r compile all CSVs}
 #compile all CSVs
 mrms_21 <- list.files(path='/Users/megansears/Documents/MRMS/2021/etf_2021', full.names = T) %>%
@@ -147,6 +157,7 @@ write_csv(mrms_22, 'mrms_22.csv')
 
 ```
 
+# Check the catchment MRMS data
 
 ```{r quick mrms check}
 
@@ -179,6 +190,272 @@ ggplot(mrms_22, aes(x = datetime, y = p_mm_cum)) +
   facet_wrap(~name)
 
 
+```
+
+# Extract by TB pixels
+
+```{r extract TB pixels}
+
+sensors_rain <- read_csv('GIS/etf_sensors.csv') %>%
+  st_as_sf(coords = c('long', 'lat'), crs = 4326) %>%
+  filter(!site == 'HM2',
+         type == 'rain') %>% #hm2 does not have coords
+  st_transform(crs = st_crs(et_sheds))
+
+usgs_rain <- read_csv('usgs_rain_coords.csv') %>%
+  st_as_sf(coords = c('long', 'lat'), crs = 4326) %>%
+    st_transform(crs = st_crs(et_sheds))
+
+rain <- bind_rows(sensors_rain, usgs_rain)
+
+```
+
+# Extract TB pixel
+
+```{r extract tb pixels}
+
+setwd('/Users/megansears/Documents/MRMS/2022')
+
+filenames <- list.files(".", pattern='.grib2', full.names=F)   
+
+  for(fileName in filenames) {
+
+#pull in raster
+r <- rast(fileName) %>%
+  terra::project(., 'EPSG:26913')
+
+#crop raster to cpf
+crop <- terra::crop(r, ext(et_bb))
+
+names(crop) <- 'p_mmhr'
+
+#extract using terra bc it has more functions :)
+extract <- terra::extract(crop, rain)
+extract$name <- rain$site
+
+timestamp <- substr(fileName, 25, 39)
+
+extract <- extract %>%
+  mutate(datetime = ymd_hms(timestamp)) %>%
+  mutate(datetime = datetime - (7 * 60 * 60)) %>%
+  mutate(doy = yday(datetime)) %>%
+  mutate(hour = hour(datetime))
+
+write.csv(extract, paste0('extract_', extract$doy[1],'_', extract$hour[1],'.csv'))
+
+  }
+
+```
+
+```{r get pixel csv}
+
+#compile all CSVs
+# pixel_21 <- list.files(path='/Users/megansears/Documents/MRMS/etf_pixel_2021', full.names = T) %>%
+#   lapply(read_csv) %>%
+#   bind_rows
+# 
+# pixel_22 <- list.files(path='/Users/megansears/Documents/MRMS/etf_pixel_2022', full.names = T) %>%
+#   lapply(read_csv) %>%
+#   bind_rows
+# 
+# #remove random columns
+# pixel_21 <- pixel_21 %>%
+#   dplyr::select(-c(...1, ID))
+# 
+# pixel_22 <- pixel_22 %>%
+#   dplyr::select(-c(...1, ID, doy, hour))
+# 
+# write_csv(pixel_21, 'mrms_pixel_21.csv')
+# write_csv(pixel_22, 'mrms_pixel_22.csv')
+
+```
+
+
+```{r obs data}
+setwd("/Volumes/Kampf/Private/field_data/east_troublesome")
+
+#pull in all filenames with composite
+filenames <- list.files(".", pattern="rain_composite", full.names=F)
+
+#read all the csvs
+dataframes <- lapply(filenames, read.csv)
+
+#name all the csv
+names(dataframes) <- substr(filenames, 1, 14)
+
+#extract csvs from list to global env
+lapply(names(dataframes), function(x) assign(x, dataframes[[x]], envir = .GlobalEnv))
+rm(dataframes) #remove dataframes list
+
+#willow upper rain
+willow_upper_rain = readNWISuv(siteNumber = 401642106051601, parameterCd = "00045")
+willow_upper_rain = willow_upper_rain[,3:4]
+colnames(willow_upper_rain)=c('datetime','P_in')
+willow_upper_rain$P_mm=willow_upper_rain$P_in*25.4
+
+#drowsy rain
+drowsy_rain = readNWISuv(siteNumber = 400912106031201, parameterCd = "00045")
+drowsy_rain = drowsy_rain[,3:4]
+colnames(drowsy_rain)=c('datetime','P_in')
+drowsy_rain$P_mm=drowsy_rain$P_in*25.4
+
+drowsy_rain <- drowsy_rain %>%
+  dplyr::select(-P_in) %>%
+  rename(precip_mm = P_mm) %>%
+  mutate(site = 'drowsy')
+
+willow_upper_rain <- willow_upper_rain %>%
+  dplyr::select(-P_in) %>%
+  rename(precip_mm = P_mm) %>%
+  mutate(site = 'willowcr_upper')
+
+lpm_rain <- lpm_rain_compo %>%
+  mutate(site = "lpm",
+         datetime = mdy_hm(datetime),
+         precip_mm = 0.254)
+
+mub_rain <- mub_rain_compo %>%
+    mutate(site = "mub",
+         datetime = mdy_hm(datetime),
+         precip_mm = 0.254)
+
+p1_rain <- p1_rain_compos %>%
+    mutate(site = "p1",
+         datetime = mdy_hm(datetime),
+         precip_mm = 0.254)
+
+rm(hum2_rain_compo, lpm_rain_compo, mub_rain_compo, p1_rain_compos)
+
+```
+
+```{r get hourly TB}
+
+tb <- bind_rows(drowsy_rain, willow_upper_rain,
+                lpm_rain, mub_rain,
+                p1_rain) %>%
+  mutate(hour = hour(datetime),
+         date = as.Date(datetime)) %>%
+  group_by(site, date, hour) %>%
+  summarize(hr_p_mm = sum(precip_mm)) %>%
+  mutate(datetime = ymd_h(paste(date, hour))) %>%
+  ungroup() %>%
+  dplyr::select(-c(date, hour)) %>%
+  mutate(source = 'tb') %>%
+  rename(precip_mm = hr_p_mm)
+
+pixel <- bind_rows(pixel_21, pixel_22) %>%
+  dplyr::select(-doy, -hour) %>%
+  rename(site = name,
+         precip_mm = p_mmhr) %>%
+  mutate(source = 'mrms',
+         site = tolower(site))
+
+pixel_comp <- bind_rows(tb, pixel) %>%
+  mutate(year = year(datetime)) %>%
+  filter(year == 2022) %>%
+  arrange(datetime) %>% 
+  group_by(source, site) %>%
+  mutate(cumulsum_mm = cumsum(precip_mm))
+
+p <- ggplot(pixel_comp, aes(x = datetime, y = cumulsum_mm, color = source)) +
+  geom_line() +
+  facet_wrap(~site)
+
+ggplotly(p)
+
+pixel1 <- pixel_comp %>%
+  filter(datetime > '2022-06-29 06:00' &
+          datetime < '2022-06-30 00:00') %>%
+  mutate(hour = hour(datetime))
+
+p2 <- ggplot(pixel1, aes(x = datetime, y = precip_mm, color = source)) +
+  geom_line() +
+  facet_wrap(~site) +
+  ggtitle('June 29 @ 13:00 to June 30 @ 05:00')
+ggplotly(p2)
+
+pixel2 <- pixel_comp %>%
+  filter(between(datetime,
+         ymd_hms('2022-07-28 12:00:00'),
+         ymd_hms('2022-07-29 06:00:00'))) %>%
+  mutate(hour = hour(datetime))
+
+p3 <- ggplot(pixel2, aes(x = datetime, y = precip_mm, color = source)) +
+  geom_line() +
+  facet_wrap(~site) +
+  ggtitle('July 28 @ 12:00 to July 29 @ 06:00')
+ggplotly(p3)
+
+pixel3 <- pixel_comp %>%
+  filter(between(datetime,
+         ymd_hms('2022-06-26 18:00:00'),
+         ymd_hms('2022-06-27 06:00:00'))) %>%
+  mutate(hour = hour(datetime))
+
+p4 <- ggplot(pixel3, aes(x = datetime, y = precip_mm, color = source)) +
+  geom_line() +
+  facet_wrap(~site) +
+  ggtitle('Jun 26 @ 18:00 to June 27 @ 06:00')
+ggplotly(p4)
+
+
+pixel4 <- pixel_comp %>%
+  filter(between(datetime,
+         ymd_hms('2022-08-28 12:00:00'),
+         ymd_hms('2022-08-28 23:00:00'))) %>%
+  mutate(hour = hour(datetime))
+
+p5 <- ggplot(pixel4, aes(x = datetime, y = precip_mm, color = source)) +
+  geom_line() +
+  facet_wrap(~site) +
+  ggtitle('Aug 28 @ 12:00 to Aug 28 @ 23:00')
+ggplotly(p5)
+
+pixel5 <- pixel_comp %>%
+  filter(between(datetime,
+         ymd_hms('2022-08-21 12:00:00'),
+         ymd_hms('2022-08-21 23:00:00'))) %>%
+  mutate(hour = hour(datetime))
+
+p6 <- ggplot(pixel5, aes(x = datetime, y = precip_mm, color = source)) +
+  geom_line() +
+  facet_wrap(~site) +
+  ggtitle('Aug 21 @ 12:00 to Aug 21 @ 23:00')
+ggplotly(p6)
+
+pixel6 <- pixel_comp %>%
+  filter(between(datetime,
+         ymd_hms('2022-08-20 20:00:00'),
+         ymd_hms('2022-08-21 06:00:00'))) %>%
+  mutate(hour = hour(datetime))
+
+p7 <- ggplot(pixel6, aes(x = datetime, y = precip_mm, color = source)) +
+  geom_line() +
+  facet_wrap(~site) +
+  ggtitle('Aug 20 @ 20:00 to Aug 21 @ 06:00')
+ggplotly(p7)
+
+
+```
+
+```{r}
+
+r <- rast('/Users/megansears/Documents/MRMS/2022/RadarOnly_QPE_01H_00.00_20220728-230000.grib2') %>%
+  terra::project(., 'EPSG:26913')
+#crop raster to cpf
+crop9 <- terra::crop(r, ext(et_bb))
+names(crop9) <- 'p_mmhr'
+crop9 <- raster(crop9) #only doing this for mapview purpose
+mapview(crop9) + mapview(rain)
+
+
+r <- rast('/Users/megansears/Documents/MRMS/2022/RadarOnly_QPE_01H_00.00_20220630-020000.grib2') %>%
+  terra::project(., 'EPSG:26913')
+#crop raster to cpf
+crop9 <- terra::crop(r, ext(et_bb))
+names(crop9) <- 'p_mmhr'
+crop9 <- raster(crop9) #only doing this for mapview purpose
+mapview(crop9) + mapview(rain)
 
 
 ```
