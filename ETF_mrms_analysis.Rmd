@@ -1,0 +1,563 @@
+---
+title: "ETF_MRMS_rain&stage"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    theme: journal
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F,
+                      message = F,
+                      fig.width = 12,
+                      fig.height = 6)
+
+#load packages
+library(tidyverse)
+library(lubridate)
+library(ggplot2); theme_set(theme_bw(base_size = 16))
+library(here)
+library(irr)
+library(plotly)
+library(kableExtra)
+library(dataRetrieval)
+library(caret)
+
+```
+
+# MRMS metrics
+
+```{r mrms metrics}
+#load in rain metic functions 
+load('rain_metrics.RData')
+
+mrms21 <- read_csv('mrms_21.csv') %>%
+  dplyr::select(-c(1:2))
+
+mrms22 <- read_csv('mrms_22.csv')
+
+mrms <- bind_rows(mrms21, mrms22) %>%
+  arrange(datetime) %>%
+  filter(datetime > '2022-05-01 00:00:00')
+
+#split dataframes by name
+dfs_by_name <- mrms %>% 
+  split(.$name)
+
+#add them to the env as DFs
+list2env(dfs_by_name, envir = .GlobalEnv)
+
+
+#create another function for getting rain metrics
+
+mrms_rain_metrics <- function(df){
+  
+  df_name <- deparse(substitute(df))
+  
+  df <- df %>% filter(p_mmhr > 0)
+
+  df <- get_setup(df, df$datetime) %>%
+    group_by(event) %>%
+    summarize(MI60 = max(p_mmhr),
+            P = sum(p_mmhr),
+             duration = max(datetime) - min(datetime),
+             endtime = max(datetime),
+            starttime = min(datetime)) %>%
+    mutate(duration_hr = as.numeric(duration/60/60)) %>%
+    filter(P > 1) %>%
+    mutate(site = df_name)
+  }
+
+#run the function on each dataframe
+pass1 <- mrms_rain_metrics(`Pass 1`)
+pass2 <- mrms_rain_metrics(`Pass 2`)
+high_unm <- mrms_rain_metrics(HighUnmulch)
+high_m <- mrms_rain_metrics(HighMulch)
+middle_unm <- mrms_rain_metrics(MiddleUnmulch)
+middle_pm <- mrms_rain_metrics(MiddlePartialMulch)
+middle_m <- mrms_rain_metrics(MiddleMulch)
+middle_unb <- mrms_rain_metrics(MiddleUnburned)
+low_unm <- mrms_rain_metrics(LowerUnmulch)
+low_m <- mrms_rain_metrics(LowerMulch)
+low_pm <- mrms_rain_metrics(LowerPartialmulch)
+
+mrms_metrics <- bind_rows(pass1, pass2, 
+                          high_unm, high_m, 
+                          middle_unm, middle_pm, 
+                          middle_m, middle_unb, 
+                          low_unm, low_m, low_pm)
+
+#mrms rain metrics summary
+rain_summary <- mrms_metrics %>%
+  ungroup() %>% 
+  dplyr::select(c(site, P, MI60,
+                  event)) %>%
+  group_by(site) %>%
+  summarize(Total_events = n(),
+            Max_P_mm = max(P),
+            Mean_P_mm = mean(P),
+            Median_P_mm = median(P),
+            Max_MI60 = max(MI60),
+            Mean_MI60 = mean(MI60),
+            Median_MI60 = median(MI60)) %>%
+  mutate_if(is.numeric,
+            round,
+            digits = 2)
+
+kable(rain_summary) %>%
+  row_spec(0,bold=TRUE) %>% 
+    kable_styling()
+
+mrms_metrics$site <- factor(mrms_metrics$site, levels=c("Pass 1", "Pass 2", "HighUnmulch", "HighMulch", 
+                                                     "MiddleUnmulch", "MiddlePartialMulch", 
+                                                     "MiddleMulch", "MiddleUnburned", 
+                                                     "LowerUnmulch", "LowerMulch", "LowerPartialmulch"))
+
+
+mrms_metrics %>%
+ggplot(aes(site, MI60)) +
+  geom_boxplot() +
+  ggtitle('MRMS 2022 MI60') +
+  labs(y = 'MI60 (mm/hr)') +
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+mrms_metrics %>%
+ggplot(aes(site, MI60)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  ggtitle('MRMS 2022 MI60') +
+  labs(y = 'MI60 (mm/hr)') +
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+mrms_metrics %>%
+ggplot(aes(site, MI60)) +
+  geom_boxplot() +
+  ggtitle('MRMS 2022 MI60') +
+  labs(y = 'MI60 (mm/hr)') +
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+mrms_metrics %>%
+ggplot(aes(site, MI60)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  ggtitle('MRMS 2022 MI60') +
+  labs(y = 'MI60 (mm/hr)') +
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+mrms_metrics %>%
+ggplot(aes(site, P)) +
+  geom_boxplot() +
+  ggtitle('MRMS 2022 rain') +
+  labs(y = 'P (mm)') +
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+mrms_metrics %>%
+ggplot(aes(site, P)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  ggtitle('MRMS 2022 rain') +
+  labs(y = 'P (mm)') +
+  scale_y_log10() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+```
+
+# Stage data
+
+```{r get stage}
+
+et_stage <- read_csv("et_stage_sensors.csv") %>%
+  dplyr::select(datetime, stage_cm = Stage_cm, site)
+
+#usgs willow stage
+willow_stage = readNWISuv(siteNumber = '09019850', parameterCd = "00065")
+willow_stage = willow_stage[,3:4]
+colnames(willow_stage)=c('datetime','Stage_ft')
+willow_stage$stage_cm=willow_stage$Stage_ft*30.48
+willow_stage$site='willow'
+
+willow_stage <- willow_stage %>%
+  dplyr::select(datetime, stage_cm, site) %>%
+  filter(datetime < '2022-10-01 00:00:00')
+
+stage <- bind_rows(et_stage, willow_stage) #%>%
+  #mutate(Stage_mm = stage_cm*10)
+
+#break out stage data by site
+dfs_by_name <- stage %>% 
+  split(.$site)
+
+#add them to the env as DFs
+list2env(dfs_by_name, envir = .GlobalEnv)
+
+```
+
+# Get stage response
+
+```{r stage response}
+
+#tweak stage response function
+get_radar_stage_resp <- function(events_df, stage_df) {
+  
+  response <- data.frame()
+  
+  for(i in 1:nrow(events_df)){
+    temp <- stage_df %>%
+      filter(datetime >=(events_df$starttime[i]) 
+             & datetime <=(events_df$endtime[i] + 12*60*60))
+    
+    temp$event = ifelse(temp$datetime >=(events_df$starttime[i]) 
+                        & temp$datetime <=(events_df$endtime[i] + 12*60*60),
+                        events_df$event[i])
+    
+    temp$duration_hr = ifelse(temp$datetime >=(events_df$starttime[i]) 
+                              & temp$datetime <=(events_df$endtime[i] + 12*60*60),
+                              events_df$duration_hr[i])
+    
+    temp$P = ifelse(temp$datetime >=(events_df$starttime[i]) 
+                    & temp$datetime <=(events_df$endtime[i] + 12*60*60),
+                    events_df$P[i])
+    
+    temp$MI60 = ifelse(temp$datetime >=(events_df$starttime[i]) 
+                       & temp$datetime <=(events_df$endtime[i] + 12*60*60),
+                       events_df$MI60[i])
+    
+    temp$starttime = ifelse(temp$datetime >=(events_df$starttime[i]) 
+                            & temp$datetime <=(events_df$endtime[i] + 12*60*60),
+                            events_df$starttime[i])
+    
+    temp$endtime = ifelse(temp$datetime >=(events_df$starttime[i]) 
+                          & temp$datetime <=(events_df$endtime[i] + 12*60*60),
+                          events_df$endtime[i])
+    
+    response <- rbind(response, temp)
+  }
+  
+  out <- response %>%
+    group_by(event) %>%
+    mutate(Stage_range = max(stage_cm) - min(stage_cm),
+           bed_change_cm = last(stage_cm) - first(stage_cm)) %>%
+    group_by(event) %>%
+    filter(stage_cm == max(stage_cm)) %>%
+    rename(Stage_cm_max = stage_cm) %>% 
+    group_by(event) %>%
+    filter(datetime == max(datetime)) %>%
+    rename(datetime_maxstage = datetime) %>%
+    mutate(starttime_rain = as_datetime(starttime),
+           endtime_rain = as_datetime(endtime),
+           lag2p_hr = as.numeric(datetime_maxstage - starttime_rain)) %>%
+    filter(!duration_hr == 0) %>%
+    mutate(response = ifelse(Stage_range > 2, 1, 0)) %>% 
+    dplyr::select(-c(starttime, endtime))
+  
+}
+
+hm_response <- get_radar_stage_resp(high_m, hm) %>%
+  mutate(site = 'hm')
+
+hum_response <- get_radar_stage_resp(high_unm, hum) %>%
+  mutate(site = 'hum')
+
+mpm_response <- get_radar_stage_resp(middle_pm, mpm) %>%
+  mutate(site = 'mpm')
+
+
+mub_response <- get_radar_stage_resp(middle_unb, mub) %>%
+  mutate(site = 'mub')
+
+mum_response <- get_radar_stage_resp(middle_unm, mum) %>%
+  mutate(site = 'mum')
+
+p1_response <- get_radar_stage_resp(pass1, p1) %>%
+  mutate(site = 'p1')
+
+p2_response <- get_radar_stage_resp(pass2, p2)  %>%
+  mutate(site = 'p2')
+
+mrms_response <- bind_rows(hm_response, hum_response, 
+                           mpm_response, mub_response, 
+                           mum_response, p1_response, 
+                           p2_response)
+
+
+
+## summary
+#response summary
+response_summary <- mrms_response %>%
+  ungroup() %>% 
+  dplyr::select(c(site, P, MI60,
+                  Stage_cm_max, Stage_range, bed_change_cm, lag2p_hr, response)) %>%
+  group_by(site) %>%
+  summarize(Total_events = n(),
+            percent_response = sum(response)/Total_events,
+            Max_Stage_Response_cm = max(Stage_range),
+            Mean_Stage_response_cm = mean(Stage_range),
+            Median_stage_cm = median(Stage_range),
+            max_bed_cm = max(bed_change_cm),
+            median_bed_cm = median(bed_change_cm)) %>%
+  mutate_if(is.numeric,
+            round,
+            digits = 2)
+
+kable(response_summary) %>%
+  kable_styling()
+
+## figs
+mrms_response %>%
+  ggplot(aes(site, Stage_range)) +
+  geom_violin(color = 'black') +
+  geom_boxplot(color = "black", width = 0.05) +
+  scale_y_log10() +
+  #scale_y_continuous(trans = pseudolog10_trans) +
+  labs(x='Site', y = 'Stage rise (cm)') +
+  theme(plot.title = element_text(size = 16, face = "bold"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12),
+        legend.position = "bottom",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) 
+
+library(ggallin)
+
+mrms_response %>%
+  ggplot(aes(site, bed_change_cm)) +
+  geom_violin(color = 'black') +
+  geom_boxplot(color = "black", width = 0.05) +
+  #scale_y_log10() +
+  scale_y_continuous(trans = pseudolog10_trans) +
+  labs(x='Site', y = 'Bed change (cm)') +
+  theme(plot.title = element_text(size = 16, face = "bold"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12),
+        legend.position = "bottom",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) 
+
+
+```
+
+
+# MRMS correlations
+
+```{r corr}
+
+#p1 corr
+p1_cor <- p1_response %>%
+  ungroup() %>% 
+  dplyr::select(duration_hr, P, MI60, bed_change_cm) %>%
+  cor()
+p1_cor
+
+#p2 corr
+p2_cor <- p2_response %>%
+  ungroup() %>% 
+  dplyr::select(duration_hr, P, MI60, bed_change_cm) %>%
+  cor()
+p2_cor
+
+#hum corr
+hum_cor <- hum_response %>%
+  ungroup() %>% 
+  dplyr::select(duration_hr, P, MI60, bed_change_cm) %>%
+  cor()
+hum_cor
+
+#hm corr
+hm_cor <- hm_response %>%
+  ungroup() %>% 
+  dplyr::select(duration_hr, P, MI60, bed_change_cm) %>%
+  cor()
+hm_cor
+
+#mum corr
+mum_cor <- mum_response %>%
+  ungroup() %>% 
+  dplyr::select(duration_hr, P, MI60, bed_change_cm) %>%
+  cor()
+mum_cor
+
+#mpm corr
+mpm_cor <- mpm_response %>%
+  ungroup() %>% 
+  dplyr::select(duration_hr, P, MI60, bed_change_cm) %>%
+  cor()
+mpm_cor
+
+#mub corr
+mub_cor <- mub_response %>%
+  ungroup() %>% 
+  dplyr::select(duration_hr, P, MI60, bed_change_cm) %>%
+  cor()
+mub_cor
+
+```
+
+# MRMS logistic regressions
+
+```{r mrms logistic}
+#p1 logistic regression
+p1_response2 <- p1_response %>%
+  mutate(doy = yday(starttime_rain))
+
+p1_glm <- glm(response ~ doy + MI60 + duration_hr, data = p1_response2, family = binomial)
+
+p1_response2$pred <- predict(me_glm, p1_response2, type = 'response')
+
+p1_response3 <- p1_response2 %>%
+  mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
+  ungroup() %>% 
+  dplyr::select(response, prediction) 
+
+p1_kappa <- kappa2(p1_response3)
+
+p1_kappa$value
+
+p1_cm <- confusionMatrix(as.factor(p1_response3$prediction), as.factor(p1_response3$response))
+p1_cm
+
+#p2 logistic regression
+p2_response2 <- p2_response %>%
+  mutate(doy = yday(starttime_rain))
+
+p2_glm <- glm(response ~ doy + MI60 + duration_hr, data = p2_response2, family = binomial)
+
+p2_response2$pred <- predict(me_glm, p2_response2, type = 'response')
+
+p2_response3 <- p2_response2 %>%
+  mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
+  ungroup() %>% 
+  dplyr::select(response, prediction) 
+
+p2_kappa <- kappa2(p2_response3)
+
+p2_kappa$value
+
+p2_cm <- confusionMatrix(as.factor(p2_response3$prediction), as.factor(p2_response3$response))
+p2_cm
+
+# hm logistic regression
+hm_response2 <- hm_response %>%
+  mutate(doy = yday(starttime_rain))
+
+hm_glm <- glm(response ~ doy + MI60 + duration_hr, data = hm_response2, family = binomial)
+
+hm_response2$pred <- predict(me_glm, hm_response2, type = 'response')
+
+hm_response3 <- hm_response2 %>%
+  mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
+  ungroup() %>% 
+  dplyr::select(response, prediction) 
+
+hm_kappa <- kappa2(hm_response3)
+
+hm_kappa$value
+
+hm_cm <- confusionMatrix(as.factor(hm_response3$prediction), as.factor(hm_response3$response))
+hm_cm
+
+# hum logistic regression
+hum_response2 <- hum_response %>%
+  mutate(doy = yday(starttime_rain))
+
+hum_glm <- glm(response ~ doy + MI60 + duration_hr, data = hum_response2, family = binomial)
+
+hum_response2$pred <- predict(me_glm, hum_response2, type = 'response')
+
+hum_response3 <- hum_response2 %>%
+  mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
+  ungroup() %>% 
+  dplyr::select(response, prediction) 
+
+hum_kappa <- kappa2(hum_response3)
+
+hum_kappa$value
+
+hum_cm <- confusionMatrix(as.factor(hum_response3$prediction), as.factor(hum_response3$response))
+hum_cm
+
+# mum logistic regression
+mum_response2 <- mum_response %>%
+  mutate(doy = yday(starttime_rain))
+
+mum_glm <- glm(response ~ doy + MI60 + duration_hr, data = mum_response2, family = binomial)
+
+mum_response2$pred <- predict(me_glm, mum_response2, type = 'response')
+
+mum_response3 <- mum_response2 %>%
+  mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
+  ungroup() %>% 
+  dplyr::select(response, prediction) 
+
+mum_kappa <- kappa2(mum_response3)
+
+mum_kappa$value
+
+mum_cm <- confusionMatrix(as.factor(mum_response3$prediction), as.factor(mum_response3$response))
+mum_cm
+
+#mpm logistic regression
+mpm_response2 <- mpm_response %>%
+  mutate(doy = yday(starttime_rain))
+
+mpm_glm <- glm(response ~ doy + MI60 + duration_hr, data = mpm_response2, family = binomial)
+
+mpm_response2$pred <- predict(me_glm, mpm_response2, type = 'response')
+
+mpm_response3 <- mpm_response2 %>%
+  mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
+  ungroup() %>% 
+  dplyr::select(response, prediction) 
+
+mpm_kappa <- kappa2(mpm_response3)
+
+mpm_kappa$value
+
+mpm_cm <- confusionMatrix(as.factor(mpm_response3$prediction), as.factor(mpm_response3$response))
+mpm_cm
+
+# mub logistic regression
+mub_response2 <- mub_response %>%
+  mutate(doy = yday(starttime_rain))
+
+mub_glm <- glm(response ~ doy + MI60 + duration_hr, data = mub_response2, family = binomial)
+
+mub_response2$pred <- predict(me_glm, mub_response2, type = 'response')
+
+mub_response3 <- mub_response2 %>%
+  mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
+  ungroup() %>% 
+  dplyr::select(response, prediction) 
+
+mub_kappa <- kappa2(mub_response3)
+
+mub_kappa$value
+
+mub_cm <- confusionMatrix(as.factor(mub_response3$prediction), as.factor(mub_response3$response))
+mub_cm
+
+
+## make a df for this
+first <- c('p1', 'p2', 'hm',
+           'hum', 'mum', 'mpm', 'mub')
+
+second <- c(p1_kappa$value, p2_kappa$value, hm_kappa$value,
+            hum_kappa$value, mum_kappa$value, mpm_kappa$value, mub_kappa$value)
+
+log_kappas <- data.frame(first,second) %>%
+  rename(site = first,
+         kappa = second)
+kable(log_kappas) %>%
+  kable_styling()
+
+```
+
