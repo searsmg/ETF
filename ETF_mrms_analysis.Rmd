@@ -51,9 +51,7 @@ dfs_by_name <- mrms %>%
 #add them to the env as DFs
 list2env(dfs_by_name, envir = .GlobalEnv)
 
-
 #create another function for getting rain metrics
-
 mrms_rain_metrics <- function(df){
   
   df_name <- deparse(substitute(df))
@@ -93,11 +91,14 @@ mrms_metrics <- bind_rows(pass1, pass2,
 
 #mrms rain metrics summary
 rain_summary <- mrms_metrics %>%
+  filter(between(endtime, ymd_hms('2022-06-01 00:00:00'),
+                 ymd_hms('2022-10-01 00:00:00'))) %>% 
   ungroup() %>% 
   dplyr::select(c(site, P, MI60,
                   event)) %>%
   group_by(site) %>%
   summarize(Total_events = n(),
+            Total_P = sum(P),
             Max_P_mm = max(P),
             Mean_P_mm = mean(P),
             Median_P_mm = median(P),
@@ -168,6 +169,18 @@ ggplot(aes(site, P)) +
   labs(y = 'P (mm)') +
   scale_y_log10() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+# Density for MI60
+ggplot(mrms_metrics, aes(x = MI60)) +
+  geom_density() +
+  facet_wrap(~site)
+
+ggplot(mrms_metrics, aes(x = MI60, color = site)) +
+ stat_ecdf(geom = "step") +
+  # facet_wrap(~site) +
+  xlim(0,10)
+
 
 
 ```
