@@ -36,7 +36,8 @@ library(caret)
 load('rain_metrics.RData')
 
 mrms21 <- read_csv('mrms_21.csv') %>%
-  dplyr::select(-c(1:2))
+  dplyr::select(-c(1:2)) %>%
+  mutate(test2 = test)
 
 mrms22 <- read_csv('mrms_22.csv')
 
@@ -424,7 +425,7 @@ p1_response2 <- p1_response %>%
 
 p1_glm <- glm(response ~ doy + MI60 + duration_hr, data = p1_response2, family = binomial)
 
-p1_response2$pred <- predict(me_glm, p1_response2, type = 'response')
+p1_response2$pred <- predict(p1_glm, p1_response2, type = 'response')
 
 p1_response3 <- p1_response2 %>%
   mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
@@ -444,7 +445,7 @@ p2_response2 <- p2_response %>%
 
 p2_glm <- glm(response ~ doy + MI60 + duration_hr, data = p2_response2, family = binomial)
 
-p2_response2$pred <- predict(me_glm, p2_response2, type = 'response')
+p2_response2$pred <- predict(p2_glm, p2_response2, type = 'response')
 
 p2_response3 <- p2_response2 %>%
   mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
@@ -464,7 +465,7 @@ hm_response2 <- hm_response %>%
 
 hm_glm <- glm(response ~ doy + MI60 + duration_hr, data = hm_response2, family = binomial)
 
-hm_response2$pred <- predict(me_glm, hm_response2, type = 'response')
+hm_response2$pred <- predict(hm_glm, hm_response2, type = 'response')
 
 hm_response3 <- hm_response2 %>%
   mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
@@ -484,7 +485,7 @@ hum_response2 <- hum_response %>%
 
 hum_glm <- glm(response ~ doy + MI60 + duration_hr, data = hum_response2, family = binomial)
 
-hum_response2$pred <- predict(me_glm, hum_response2, type = 'response')
+hum_response2$pred <- predict(hum_glm, hum_response2, type = 'response')
 
 hum_response3 <- hum_response2 %>%
   mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
@@ -504,7 +505,7 @@ mum_response2 <- mum_response %>%
 
 mum_glm <- glm(response ~ doy + MI60 + duration_hr, data = mum_response2, family = binomial)
 
-mum_response2$pred <- predict(me_glm, mum_response2, type = 'response')
+mum_response2$pred <- predict(mum_glm, mum_response2, type = 'response')
 
 mum_response3 <- mum_response2 %>%
   mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
@@ -524,7 +525,7 @@ mpm_response2 <- mpm_response %>%
 
 mpm_glm <- glm(response ~ doy + MI60 + duration_hr, data = mpm_response2, family = binomial)
 
-mpm_response2$pred <- predict(me_glm, mpm_response2, type = 'response')
+mpm_response2$pred <- predict(mpm_glm, mpm_response2, type = 'response')
 
 mpm_response3 <- mpm_response2 %>%
   mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
@@ -544,7 +545,7 @@ mub_response2 <- mub_response %>%
 
 mub_glm <- glm(response ~ doy + MI60 + duration_hr, data = mub_response2, family = binomial)
 
-mub_response2$pred <- predict(me_glm, mub_response2, type = 'response')
+mub_response2$pred <- predict(mub_glm, mub_response2, type = 'response')
 
 mub_response3 <- mub_response2 %>%
   mutate(prediction = if_else(pred > 0.5, 1, 0)) %>%
